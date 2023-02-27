@@ -318,6 +318,8 @@ class CalculatePicketing:
         self.delta_coord()
         x_0 = self.pointsX[0]
         y_0 = self.pointsY[0]
+        self.pickX.append(x_0)
+        self.pickY.append(y_0)
         i = 0
         while i < (len(self.pointsX) - 2):
             pk_x = x_0 + self.delta_x_list[i]
