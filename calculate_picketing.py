@@ -32,18 +32,18 @@ from qgis.core import QgsVectorLayer, QgsPoint, QgsVectorDataProvider
 from qgis.core import QgsFeature
 from .calculate_picketing_dialog import CalculatePicketingDialog
 from qgis.core import (
-  QgsGeometry,
-  QgsGeometryCollection,
-  QgsPoint,
-  QgsPointXY,
-  QgsWkbTypes,
-  QgsProject,
-  QgsFeatureRequest,
-  QgsVectorLayer,
-  QgsDistanceArea,
-  QgsUnitTypes,
-  QgsCoordinateTransform,
-  QgsCoordinateReferenceSystem
+    QgsGeometry,
+    QgsGeometryCollection,
+    QgsPoint,
+    QgsPointXY,
+    QgsWkbTypes,
+    QgsProject,
+    QgsFeatureRequest,
+    QgsVectorLayer,
+    QgsDistanceArea,
+    QgsUnitTypes,
+    QgsCoordinateTransform,
+    QgsCoordinateReferenceSystem
 )
 
 import os.path
@@ -62,6 +62,12 @@ class CalculatePicketing:
         :type iface: QgsInterface
         """
         # Save reference to the QGIS interface
+        self.pickY = []
+        self.pickX = []
+        self.tan_rumb_list = []
+        self.dist_list = []
+        self.delta_y_list = []
+        self.delta_x_list = []
         self.pointsY = []
         self.pointsX = []
         self.parts_list = []
@@ -221,53 +227,48 @@ class CalculatePicketing:
             pass
 
     def LineLengthCalc(self):
-        """Calculate the length of features in a line"""
+        """Основной метод: получаем координаты и рассчитываем расстояния и углы"""
         # get the current active layer
         layer = self.iface.activeLayer()
-        dist_list = []
-        # d = QgsDistanceArea()
-        # d.setEllipsoid('WGS84')
+        layer.selectAll()
+        # Находим координаты узловых точек линии
         for feat in layer.getFeatures():
-            geom = feat.geometry()
-            # print(geom)
-            # print(geom.asPoint().x())
-            x = geom.asPoint().x()
-            y = geom.asPoint().y()
-            # print(x, y)
-            # d = self.distance
-            self.pointsX.append(x)
-            self.pointsY.append(y)
-        # print([point for point in pointsX])
-        # geom.transform(QgsCoordinateTransform(
-        #     QgsCoordinateReferenceSystem("EPSG:4326"),
-        #     QgsCoordinateReferenceSystem("EPSG:3111"),
-        #     QgsProject.instance())
-        # )
+            # Проверяем, что объект - полилиния (индекс 1 соответствует полилиниям)
+            if feat.geometry().type() == 1:
+                for part in feat.geometry().asMultiPolyline():
+                    for pnt in part:
+                        x = pnt.x()
+                        y = pnt.y()
+                        # Сохраняем координаты узловых точек в списки
+                        self.pointsX.append(x)
+                        self.pointsY.append(y)
+            else:
+                print("Incorrect type of geometry. Must be - polyline")
 
+        # Находим расстояния и дирекционные углы
         for i in range(0, len(self.pointsX) - 1):
             dist = self.distance(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
             direc = self.dir_angle(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
-            dist_list.append(dist)
+            self.dist_list.append(dist)
             self.dir_list.append(direc)
-            parts = math.floor(dist/100)
+            parts = math.floor(dist / 100)
             self.parts_list.append(parts)
-            # print("Distance in ???: ", dist)
-            # print("Direction angle in rad: ", direc)
-        # print(dist_list)
-        # print(parts_list)
-        # print(self.delta_coord())
+
+        self.delta_coord()
+        print(self.calc_pick())
         self.add_points()
 
-            # print(geom.length())
-
     def distance(self, x1, y1, x2, y2):
+        """Метод определения расстояний через ОГЗ"""
         dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
         return dist
 
     def dir_angle(self, x1, y1, x2, y2):
+        """Метод определения дирекционных углов в радианах через ОГЗ"""
         delta_x = x2 - x1
         delta_y = y2 - y1
         tan_rumb = delta_x / delta_y
+        self.tan_rumb_list.append(tan_rumb)
         rumb = math.atan(tan_rumb)
         if delta_x > 0 and delta_y > 0:
             dir = rumb
@@ -279,37 +280,90 @@ class CalculatePicketing:
             dir = math.pi - rumb
         return dir
 
-    def delta_coord(self):
-        delta_x_list = []
-        delta_y_list = []
+    def rest_dist(self) -> list[float]:
+        """Метод для расчета остатка расстояния пикета при переходе от одной линии к другой"""
+        rest = []
+        rest_dist = 100 - (self.dist_list[0] - self.parts_list[0] * 100)
+        rest.append(rest_dist)
+        for i in range(1, len(self.pointsX) - 2):
+            r = (self.dist_list[i] - rest[-1]) % 100
+            rest.append(100 - r)
+        return rest
+
+    def delta_x(self, angle, length):
+        delta_x = length * math.sin(angle)
+        return delta_x
+
+    def delta_y(self, angle, length):
+        delta_y = length * math.cos(angle)
+        return delta_y
+
+    def delta_coord(self, length=100):
+        """Рассчитывает приращение координат по прямой линии для каждого участка для 100 м"""
+        self.delta_x_list = []
+        self.delta_y_list = []
         for i in self.dir_list:
-            delta_x = 100 * math.sin(i)
-            delta_y = 100 * math.cos(i)
-            delta_x_list.append(delta_x)
-            delta_y_list.append(delta_y)
-        # for i in range(len(self.parts_list)):
-        x = self.pointsX[0] + delta_x_list[0]
-        y = self.pointsY[0] + delta_y_list[0]
-        return (x,y)
+            delta_x = length * math.sin(i)
+            delta_y = length * math.cos(i)
+            self.delta_x_list.append(delta_x)
+            self.delta_y_list.append(delta_y)
+        return self.delta_x_list, self.delta_y_list
+
+    # ОСНОВНАЯ ЛОГИКА
+
+    def calc_pick(self):
+        """Метод, реализующий получение координат пикетов в виде списков"""
+        # sum_dist = sum(self.dist_list)
+        # pickets = int(sum_dist // 100)
+        self.delta_coord()
+        x_0 = self.pointsX[0]
+        y_0 = self.pointsY[0]
+        i = 0
+        while i < (len(self.pointsX) - 2):
+            pk_x = x_0 + self.delta_x_list[i]
+            pk_y = y_0 + self.delta_y_list[i]
+            x_0 = pk_x
+            y_0 = pk_y
+            d = self.distance(self.pointsX[i + 1], self.pointsY[i + 1], pk_x, pk_y)
+            if d > 100:
+                self.pickX.append(pk_x)
+                self.pickY.append(pk_y)
+            else:
+                r_1 = (pk_x - self.pointsX[i + 1]) / (pk_y - self.pointsY[i + 1])
+                r_2 = (pk_x - self.pointsX[i]) / (pk_y - self.pointsY[i])
+                if r_1 == self.tan_rumb_list[i+1] or r_2 == self.tan_rumb_list[i]:
+                    self.pickX.append(pk_x)
+                    self.pickY.append(pk_y)
+                pk_x = self.pointsX[i + 1] + self.delta_x(self.dir_list[i + 1], self.rest_dist()[i])
+                pk_y = self.pointsY[i + 1] + self.delta_y(self.dir_list[i + 1], self.rest_dist()[i])
+                x_0 = pk_x
+                y_0 = pk_y
+                self.pickX.append(pk_x)
+                self.pickY.append(pk_y)
+                i += 1
+
+        last_dist = int((self.dist_list[-1] - self.rest_dist()[-1]) // 100)
+        if last_dist != 0:
+            for n in range(last_dist):
+                pk_x = x_0 + self.delta_x_list[-1]
+                pk_y = y_0 + self.delta_y_list[-1]
+                x_0 = pk_x
+                y_0 = pk_y
+                self.pickX.append(pk_x)
+                self.pickY.append(pk_y)
+
+        return self.pickX, self.pickY
 
     def add_points(self):
-        coord = self.delta_coord()
-        x = coord[0]
-        y = coord[1]
-
-        layers = QgsProject.instance().mapLayersByName('Точки')
+        """Метод добавления пикетов на точечный слой в QGIS"""
+        layers = QgsProject.instance().mapLayersByName('Пикеты')
         layer = QgsVectorLayer(layers[0].dataProvider().dataSourceUri(), '', 'ogr')
-
         caps = layer.dataProvider().capabilities()
         if caps & QgsVectorDataProvider.AddFeatures:
             feat = QgsFeature(layer.fields())
             feat.setAttributes([0, 'added programatically'])
-
-            feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x, y)))
-            res, outFeats = layer.dataProvider().addFeatures([feat])
-
-
-
-
-
-
+            for i in range(len(self.pickX)):
+                x = self.pickX[i]
+                y = self.pickY[i]
+                feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x, y)))
+                res, outFeats = layer.dataProvider().addFeatures([feat])
