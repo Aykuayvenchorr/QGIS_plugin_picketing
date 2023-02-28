@@ -331,9 +331,11 @@ class CalculatePicketing:
                 self.pickX.append(pk_x)
                 self.pickY.append(pk_y)
             else:
-                r_1 = (pk_x - self.pointsX[i + 1]) / (pk_y - self.pointsY[i + 1])
-                r_2 = (pk_x - self.pointsX[i]) / (pk_y - self.pointsY[i])
-                if r_1 == self.tan_rumb_list[i+1] or r_2 == self.tan_rumb_list[i]:
+                r_1 = round((pk_x - self.pointsX[i + 1]) / (pk_y - self.pointsY[i + 1]), 9)
+                r_2 = round((pk_x - self.pointsX[i]) / (pk_y - self.pointsY[i]), 9)
+                # Условие, при котором пикеты не будут выходить за пределы дороги
+                # Подумать насчет pk_x < X, так как дорога может быть в другую сторону
+                if r_1 == round(self.tan_rumb_list[i+1], 9) or r_2 == round(self.tan_rumb_list[i], 9) and pk_x < self.pointsX[i+1]:
                     self.pickX.append(pk_x)
                     self.pickY.append(pk_y)
                 pk_x = self.pointsX[i + 1] + self.delta_x(self.dir_list[i + 1], self.rest_dist()[i])
