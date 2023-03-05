@@ -1,7 +1,7 @@
-class Listclass:
+class ListClass:
     # Класс реализующий список
 
-    def __init__(self, values = None):
+    def __init__(self, values=None):
         if values is None:
             self.values = []
         else:

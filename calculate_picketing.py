@@ -26,6 +26,9 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 # Initialize Qt resources from file resources.py
+from modules.Vector import Vector
+from modules.classlist import ListClass
+from modules.point import Point
 from .resources import *
 # Import the code for the dialog
 from qgis.core import QgsVectorLayer, QgsPoint, QgsVectorDataProvider
@@ -231,32 +234,29 @@ class CalculatePicketing:
         # get the current active layer
         layer = self.iface.activeLayer()
         layer.selectAll()
+        list_of_points = ListClass()
+        list_of_vectors = ListClass()
         # Находим координаты узловых точек линии
         for feat in layer.getFeatures():
             # Проверяем, что объект - полилиния (индекс 1 соответствует полилиниям)
             if feat.geometry().type() == 1:
                 for part in feat.geometry().asMultiPolyline():
                     for pnt in part:
-                        x = pnt.x()
-                        y = pnt.y()
+                        pnt = Point(pnt.y(), pnt.x())
                         # Сохраняем координаты узловых точек в списки
-                        self.pointsX.append(x)
-                        self.pointsY.append(y)
+                        list_of_points.append(pnt)
             else:
                 print("Incorrect type of geometry. Must be - polyline")
 
         # Находим расстояния и дирекционные углы
-        for i in range(0, len(self.pointsX) - 1):
-            dist = self.distance(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
-            direc = self.dir_angle(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
-            self.dist_list.append(dist)
-            self.dir_list.append(direc)
-            parts = math.floor(dist / 100)
-            self.parts_list.append(parts)
+        for i in range(0, len(list_of_points) - 1):
+            list_of_vectors.append(Vector(list_of_points[i], list_of_points[i+1]))
 
-        self.delta_coord()
-        print(self.calc_pick())
-        self.add_points()
+        # print(nodal_points)
+        # self.delta_coord()
+        # print(self.calc_pick())
+        # self.add_points()
+        print(list_of_points)
 
     def distance(self, x1, y1, x2, y2):
         """Метод определения расстояний через ОГЗ"""
@@ -313,8 +313,6 @@ class CalculatePicketing:
 
     def calc_pick(self):
         """Метод, реализующий получение координат пикетов в виде списков"""
-        # sum_dist = sum(self.dist_list)
-        # pickets = int(sum_dist // 100)
         self.delta_coord()
         x_0 = self.pointsX[0]
         y_0 = self.pointsY[0]
