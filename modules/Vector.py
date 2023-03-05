@@ -1,5 +1,5 @@
-from modules.point import Point
-from modules.angle import rad2grad
+from .point import Point
+from .angle import rad2grad
 import cmath
 
 

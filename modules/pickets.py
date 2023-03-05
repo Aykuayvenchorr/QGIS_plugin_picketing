@@ -1,7 +1,7 @@
 from typing import List, NoReturn;
-from modules.point import Point;
-from modules.picket import Picket;
-from modules.vector import Vector;
+from .point import Point;
+from .picket import Picket;
+from .vector import Vector;
 
 
 class Pickets:
@@ -24,33 +24,34 @@ class Pickets:
     def __create_pickets(self) -> NoReturn:
         self.__pickets = [];
         self.__domer = 0.0;
-        namepk = 1;
+        namepk = 0;
         for i, pnt in enumerate(self.__line):
             if (i == len(self.__line) - 1): return;
-            if (i == 0): self.__pickets.append(Picket(pnt, f'{self.__txt}'));
+            if (i == 0):
+                self.__pickets.append(Picket(pnt, f'{self.__txt}{namepk}'));
+                namepk += 1;
+
             vector = Vector(pnt, self.__line[i+1]);
 
-            if vector.length() < self.__distance - self.__domer:
-                self.__domer = self.__distance - self.__domer;
+            if (vector.length() < (self.__distance - self.__domer)):
+                self.__domer += vector.length();
                 continue;
 
-            if (vector.length() == self.__distance - self.__domer):
+            if (vector.length() == (self.__distance - self.__domer)):
                 self.__domer = 0.0;
                 self.__pickets.append(Picket(pnt, f'{self.__txt}{namepk}'));
                 namepk += 1;
                 continue;
 
-            if vector.length() > self.__distance - self.__domer:
+            if (vector.length() > (self.__distance - self.__domer)):
                 l: float = self.__distance - self.__domer;
                 while l <= vector.length():
                     p: Point = vector.point_on_distance(pnt, l);
-                    if (self.__pickets[-1].point != p):
-                        self.__pickets.append(Picket(p, f'{self.__txt}{namepk}'));
-                        namepk += 1;
-                    l += self.__distance;
+                    self.__pickets.append(Picket(p, f'{self.__txt}{namepk}'));
                     self.__domer = 0.0;
-                self.__domer = l - vector.length();
-                continue;
+                    l += (self.__distance - self.__domer);
+                    namepk += 1;
+                self.__domer = self.__distance - (l - vector.length());
 
     def change_line(self,  points: List[Point] = []) -> NoReturn:
         self.__line = points;
