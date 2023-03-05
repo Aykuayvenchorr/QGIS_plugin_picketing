@@ -25,9 +25,11 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
+
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
+from qgis.core import Qgis
 from qgis.core import QgsVectorLayer, QgsPoint, QgsVectorDataProvider
 from qgis.core import QgsFeature
 from .calculate_picketing_dialog import CalculatePicketingDialog
@@ -48,6 +50,8 @@ from qgis.core import (
 
 import os.path
 import math
+
+from .modules.layer_props import LayerProps
 
 
 class CalculatePicketing:
@@ -214,7 +218,7 @@ class CalculatePicketing:
             self.first_start = False
             self.dlg = CalculatePicketingDialog()
             # self.dlg.lineLengthButton.clicked.connect(self.lineLengthCalc)
-            self.dlg.LineLengthButton.clicked.connect(self.LineLengthCalc)
+            self.dlg.LineLengthButton.clicked.connect(self.LineTest)
 
         # show the dialog
         self.dlg.show()
@@ -225,6 +229,14 @@ class CalculatePicketing:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             pass
+
+    def LineTest(self):
+        lp = LayerProps(self.iface)
+        # print('Текущее имя активного слоя в списке: ', lp.name_current())
+        # print('Реальное имя активного слоя в списке: ', lp.name_true())
+        # print('Тип слоя:', lp.type())
+        lp.PK()
+
 
     def LineLengthCalc(self):
         """Основной метод: получаем координаты и рассчитываем расстояния и углы"""
