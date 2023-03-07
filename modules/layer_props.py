@@ -2,21 +2,17 @@ from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtCore import QVariant
 
 from qgis.core import Qgis
-from qgis.core import QgsVectorLayer, QgsPoint, QgsVectorDataProvider
 from qgis.core import QgsFeature
 from qgis.core import (
     QgsGeometry,
     QgsGeometryCollection,
     QgsPoint,
     QgsPointXY,
-    QgsWkbTypes,
     QgsProject,
     QgsFeatureRequest,
     QgsVectorLayer,
     QgsDistanceArea,
     QgsUnitTypes,
-    QgsCoordinateTransform,
-    QgsCoordinateReferenceSystem,
     QgsField,
 )
 from qgis.gui import (
@@ -27,14 +23,16 @@ from .point import Point
 from .pickets import Pickets
 
 
-class LayerProps():
-    def __init__(self, iface):
+class LayerProps:
+    def __init__(self, iface, distance: float, prefix: str):
         self.__iface = iface
         self.__canvas = self.__iface.mapCanvas()
         self.__layer = iface.activeLayer()
         self.__layer_name_curr = self.__layer.name()
         self.__layer_name_true = self.__layer.dataProvider().subLayers()[0].split('!!::!!')[1]
         self.__layer_type = self.__layer.geometryType()
+        self.distance = distance;
+        self.prefix = prefix;
 
     def layer(self):
         return self.__layer
@@ -84,15 +82,20 @@ class LayerProps():
         for feature in features:
             for part in feature.geometry().asMultiPolyline():
                 for pnt in part:
+                    # transform CRS: CRS_layer -> CRS_target
                     points.append(Point(pnt.y(), pnt.x()))
         return points
 
     def PK(self):
-        pickets = Pickets(self.get_points());
-        pickets.get();
+        pickets = Pickets(self.get_points(), self.distance, self.prefix);
+        pickets.get()
 
         # create layer
-        vl = QgsVectorLayer("Point?crs=epsg:28473", "temporary_points", "memory")
+        # layer.crs()
+        crs = str(self.__layer.crs()).split(': ')[1].split('>')[0]
+        crs_str = "Point?crs="+crs
+        # print(crs_str)
+        vl = QgsVectorLayer(crs_str, "temporary_points", "memory")
         pr = vl.dataProvider()
 
         # add fields
@@ -115,4 +118,4 @@ class LayerProps():
 
         # for f in vl.getFeatures():
         #     print("Feature:", f.id(), f.attributes(), f.geometry().asPoint())
-        # print(pickets);
+        # print(pickets)

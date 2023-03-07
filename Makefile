@@ -44,7 +44,7 @@ PLUGINNAME = calculate_picketing
 
 PY_FILES = \
 	__init__.py \
-	calculate_picketing.py calculate_picketing_dialog.py
+	calculate_picketing.py calculate_picketing_dialog.py \
 
 UI_FILES = calculate_picketing_dialog_base.ui
 

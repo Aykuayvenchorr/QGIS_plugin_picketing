@@ -27,30 +27,19 @@ from qgis.PyQt.QtWidgets import QAction
 
 
 # Initialize Qt resources from file resources.py
-from .resources import *
 # Import the code for the dialog
-from qgis.core import Qgis
-from qgis.core import QgsVectorLayer, QgsPoint, QgsVectorDataProvider
+from qgis.core import QgsVectorDataProvider
 from qgis.core import QgsFeature
 from .calculate_picketing_dialog import CalculatePicketingDialog
 from qgis.core import (
     QgsGeometry,
-    QgsGeometryCollection,
-    QgsPoint,
     QgsPointXY,
-    QgsWkbTypes,
     QgsProject,
-    QgsFeatureRequest,
-    QgsVectorLayer,
-    QgsDistanceArea,
-    QgsUnitTypes,
-    QgsCoordinateTransform,
-    QgsCoordinateReferenceSystem
+    QgsVectorLayer
 )
 
 import os.path
 import math
-
 from .modules.layer_props import LayerProps
 
 
@@ -217,8 +206,16 @@ class CalculatePicketing:
         if self.first_start == True:
             self.first_start = False
             self.dlg = CalculatePicketingDialog()
-            # self.dlg.lineLengthButton.clicked.connect(self.lineLengthCalc)
-            self.dlg.LineLengthButton.clicked.connect(self.LineTest)
+            self.dist_pk = self.dlg.Distance.text()
+            self.prefix_pk = self.dlg.Prefix.text()
+            # self.dlg.lineEdit.textEdited
+            # self.qline = self.dlg.lineEdit.text()
+
+            # self.qline = self.dlg.lineEdit.setText(50)
+            # self.qline = self.dlg.lineEdit.displayText()
+            self.dlg.LineLengthButton.clicked.connect(self.LineLengthCalc)
+            # self.dlg.LineLengthButton.clicked.connect(self.LineTest)
+
 
         # show the dialog
         self.dlg.show()
@@ -266,9 +263,18 @@ class CalculatePicketing:
             parts = math.floor(dist / 100)
             self.parts_list.append(parts)
 
-        self.delta_coord()
-        print(self.calc_pick())
-        self.add_points()
+        # self.delta_coord()
+        # print(self.calc_pick())
+        # self.add_points()
+
+        print(self.dist_pk)
+        print(self.prefix_pk)
+        print(float(self.dlg.Distance.text()));
+        print(self.dlg.Prefix.text());
+        p = LayerProps(self.iface, float(self.dlg.Distance.text()), self.dlg.Prefix.text());
+        p.PK();
+
+        # print(self.qline)
 
     def distance(self, x1, y1, x2, y2):
         """Метод определения расстояний через ОГЗ"""
