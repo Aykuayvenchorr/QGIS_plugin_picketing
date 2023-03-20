@@ -14,7 +14,11 @@ from qgis.core import (
     QgsDistanceArea,
     QgsUnitTypes,
     QgsField,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform
 )
+
+
 from qgis.gui import (
     QgsVertexMarker,
 )
@@ -24,7 +28,7 @@ from .pickets import Pickets
 
 
 class LayerProps:
-    def __init__(self, iface, distance: float, prefix: str):
+    def __init__(self, iface, distance: float, prefix: str, crs_target: str):
         self.__iface = iface
         self.__canvas = self.__iface.mapCanvas()
         self.__layer = iface.activeLayer()
@@ -33,6 +37,7 @@ class LayerProps:
         self.__layer_type = self.__layer.geometryType()
         self.distance = distance;
         self.prefix = prefix;
+        self.crs_target = crs_target
 
     def layer(self):
         return self.__layer
@@ -76,6 +81,23 @@ class LayerProps:
             # refer to all attributes
             print(feature.attributes())  # results in [3, 'Group 1', 4.6]
 
+    def convert_crs(self, point, crs_target_):
+        """Метод, преобразующий исходные координаты точек из системы координат слоя в целевую СК"""
+        crs = str(self.__layer.crs()).split(': ')[1].split('>')[0]
+        crsSrc = QgsCoordinateReferenceSystem(crs)  # WGS 84
+        crsDest = QgsCoordinateReferenceSystem(str(crs_target_))  # WGS 84 / UTM zone 33N
+
+        # crsSrc = QgsCoordinateReferenceSystem("EPSG:4326")  # WGS 84
+        # crsDest = QgsCoordinateReferenceSystem("EPSG:32633")  # WGS 84 / UTM zone 33N
+
+        transformContext = QgsProject.instance().transformContext()
+        xform = QgsCoordinateTransform(crsSrc, crsDest, transformContext)
+        #
+        # forward transformation: src -> dest
+        pt1 = xform.transform(QgsPointXY(point.x(), point.y()))
+        # print("Transformed point:", pt1.x())
+        return pt1
+
     def get_points(self):
         points = []
         features = self.__layer.selectedFeatures()
@@ -83,6 +105,10 @@ class LayerProps:
             for part in feature.geometry().asMultiPolyline():
                 for pnt in part:
                     # transform CRS: CRS_layer -> CRS_target
+                    # print(pnt.x())
+
+                    pnt = self.convert_crs(pnt, self.crs_target)
+                    print(pnt.x())
                     points.append(Point(pnt.y(), pnt.x()))
         return points
 
@@ -95,7 +121,10 @@ class LayerProps:
         crs = str(self.__layer.crs()).split(': ')[1].split('>')[0]
         crs_str = "Point?crs="+crs
         # print(crs_str)
-        vl = QgsVectorLayer(crs_str, "temporary_points", "memory")
+        crs_trg = "Point?crs="+str(self.crs_target)
+        # print(crs_trg)
+        # Создание временного слоя в целевой СК
+        vl = QgsVectorLayer(crs_trg, "temporary_points", "memory")
         pr = vl.dataProvider()
 
         # add fields

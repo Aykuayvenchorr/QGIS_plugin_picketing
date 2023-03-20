@@ -25,18 +25,35 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-
 # Initialize Qt resources from file resources.py
+from .resources import *
 # Import the code for the dialog
-from qgis.core import QgsVectorDataProvider
-from qgis.core import QgsFeature
 from .calculate_picketing_dialog import CalculatePicketingDialog
 from qgis.core import (
+    Qgis,
+    QgsFeature,
+    QgsVectorDataProvider,
     QgsGeometry,
+    QgsGeometryCollection,
+    QgsPoint,
     QgsPointXY,
+    QgsWkbTypes,
     QgsProject,
-    QgsVectorLayer
+    QgsFeatureRequest,
+    QgsVectorLayer,
+    QgsDistanceArea,
+    QgsUnitTypes,
+    QgsCoordinateTransform,
+    QgsCoordinateReferenceSystem
 )
+
+from qgis.gui import (
+    QgsMessageBar,
+    QgsMapTool,
+    QgsMapToolIdentify,
+    QgisInterface)
+
+from PyQt5.QtCore import Qt
 
 import os.path
 import math
@@ -55,16 +72,13 @@ class CalculatePicketing:
         :type iface: QgsInterface
         """
         # Save reference to the QGIS interface
-        self.pickY = []
-        self.pickX = []
-        self.tan_rumb_list = []
-        self.dist_list = []
-        self.delta_y_list = []
-        self.delta_x_list = []
-        self.pointsY = []
-        self.pointsX = []
-        self.parts_list = []
-        self.dir_list = []
+
+        self.dlg = None
+        self.dist_pk = None
+        self.prefix_pk = None
+        self.crs_layer = None
+        self.crs_target = None
+
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -203,7 +217,7 @@ class CalculatePicketing:
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
             self.dlg = CalculatePicketingDialog()
             self.dist_pk = self.dlg.Distance.text()
@@ -211,14 +225,35 @@ class CalculatePicketing:
             # self.dlg.lineEdit.textEdited
             # self.qline = self.dlg.lineEdit.text()
 
+            # Делаем наше окно всегда поверх экрана
+            self.dlg.setWindowFlags(Qt.WindowStaysOnTopHint)
+
+            # Если есть желание сделать кнопку с отображением нажимания "Checkable"
+            # self.dlg.btnSelectLine.setCheckable(True)
+
             # self.qline = self.dlg.lineEdit.setText(50)
             # self.qline = self.dlg.lineEdit.displayText()
             self.dlg.LineLengthButton.clicked.connect(self.LineLengthCalc)
             # self.dlg.LineLengthButton.clicked.connect(self.LineTest)
 
+            # Копке "Выбрать линию" (я ее в QtDesigner назвал btnSelectLine) назначаем метод "SelectLine" при нажатии
+            self.dlg.btnSelectLine.clicked.connect(self.SelectLine)
+
+            # self.dlg.ChooseCRS.clicked.connect(self.SelectCRS)
 
         # show the dialog
         self.dlg.show()
+
+        # Это если мы делаем кнопку нажимаемой, то при каждом запуске делаем ее отжатой
+        # self.dlg.btnSelectLine.setChecked(False)
+
+        # Ставим целевой системой координат - СК проекта
+        # self.crs_target = QgsProject.instance().crs().authid()
+        self.crs_target = QgsProject.instance().crs()
+        self.crs_layer = self.iface.activeLayer().crs()
+        # Либо:
+        # self.crs_target = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
@@ -227,6 +262,38 @@ class CalculatePicketing:
             # substitute with your code.
             pass
 
+    def SelectCRS(self):
+        crs_target = self.dlg.ChooseCRS.currentText()
+        return crs_target
+
+    def SelectLine(self):
+        messageBar = self.iface.messageBar()
+        # Запишем текущий активный инструмент
+        action_curr = self.iface.mapCanvas().mapTool().action()
+        # Если хотим вывести в сообщение наименование текущего инструмента
+
+        messageBar.pushMessage("1 Current map tool: " + str(action_curr.text()), level=Qgis.Info, duration=5)
+        # Устанавливаем текущим инструментом стандартный инструмент выбора объектов
+        self.iface.actionSelect().trigger()
+        # Можно вывести в сообщение новый активный инструмент
+        messageBar.pushMessage("2 Current map tool: " + str(self.iface.mapCanvas().mapTool().toolName()),
+                               level=Qgis.Info, duration=5)
+        selectedLayer = self.iface.activeLayer()
+        if selectedLayer:
+            selectedLayer.selectionChanged.connect(self.IsLineSelected)
+        # self.iface.legendInterface().currentLayerChanged.connect(self.layerChanged)
+
+    def IsLineSelected(self):
+        selectedLayer = self.iface.activeLayer()
+        if selectedLayer.geometryType() != 1:
+            selectedLayer.removeSelection()
+            self.iface.messageBar().pushMessage("Вы выбрали не линейный слой! Выберите пожалуйста слой с линиями.",
+                                                level=Qgis.Critical,
+                                                duration=5)
+        else:
+            # self.crs_layer = selectedLayer.crs().authid()
+            self.crs_layer = selectedLayer.crs()
+
     def LineTest(self):
         lp = LayerProps(self.iface)
         # print('Текущее имя активного слоя в списке: ', lp.name_current())
@@ -234,158 +301,16 @@ class CalculatePicketing:
         # print('Тип слоя:', lp.type())
         lp.PK()
 
-
     def LineLengthCalc(self):
         """Основной метод: получаем координаты и рассчитываем расстояния и углы"""
-        # get the current active layer
-        layer = self.iface.activeLayer()
-        layer.selectAll()
-        # Находим координаты узловых точек линии
-        for feat in layer.getFeatures():
-            # Проверяем, что объект - полилиния (индекс 1 соответствует полилиниям)
-            if feat.geometry().type() == 1:
-                for part in feat.geometry().asMultiPolyline():
-                    for pnt in part:
-                        x = pnt.x()
-                        y = pnt.y()
-                        # Сохраняем координаты узловых точек в списки
-                        self.pointsX.append(x)
-                        self.pointsY.append(y)
-            else:
-                print("Incorrect type of geometry. Must be - polyline")
-
-        # Находим расстояния и дирекционные углы
-        for i in range(0, len(self.pointsX) - 1):
-            dist = self.distance(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
-            direc = self.dir_angle(self.pointsX[i], self.pointsY[i], self.pointsX[i + 1], self.pointsY[i + 1])
-            self.dist_list.append(dist)
-            self.dir_list.append(direc)
-            parts = math.floor(dist / 100)
-            self.parts_list.append(parts)
-
-        # self.delta_coord()
-        # print(self.calc_pick())
-        # self.add_points()
 
         print(self.dist_pk)
         print(self.prefix_pk)
         print(float(self.dlg.Distance.text()));
         print(self.dlg.Prefix.text());
-        p = LayerProps(self.iface, float(self.dlg.Distance.text()), self.dlg.Prefix.text());
+        p = LayerProps(self.iface, float(self.dlg.Distance.text()), self.dlg.Prefix.text(), self.SelectCRS());
         p.PK();
 
         # print(self.qline)
 
-    def distance(self, x1, y1, x2, y2):
-        """Метод определения расстояний через ОГЗ"""
-        dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
-        return dist
 
-    def dir_angle(self, x1, y1, x2, y2):
-        """Метод определения дирекционных углов в радианах через ОГЗ"""
-        delta_x = x2 - x1
-        delta_y = y2 - y1
-        tan_rumb = delta_x / delta_y
-        self.tan_rumb_list.append(tan_rumb)
-        rumb = math.atan(tan_rumb)
-        if delta_x > 0 and delta_y > 0:
-            dir = rumb
-        elif delta_x > 0 and delta_y < 0:
-            dir = 2 * math.pi - rumb
-        elif delta_x < 0 and delta_y < 0:
-            dir = math.pi + rumb
-        elif delta_x < 0 and delta_y > 0:
-            dir = math.pi - rumb
-        return dir
-
-    def rest_dist(self) -> list[float]:
-        """Метод для расчета остатка расстояния пикета при переходе от одной линии к другой"""
-        rest = []
-        rest_dist = 100 - (self.dist_list[0] - self.parts_list[0] * 100)
-        rest.append(rest_dist)
-        for i in range(1, len(self.pointsX) - 2):
-            r = (self.dist_list[i] - rest[-1]) % 100
-            rest.append(100 - r)
-        return rest
-
-    def delta_x(self, angle, length):
-        delta_x = length * math.sin(angle)
-        return delta_x
-
-    def delta_y(self, angle, length):
-        delta_y = length * math.cos(angle)
-        return delta_y
-
-    def delta_coord(self, length=100):
-        """Рассчитывает приращение координат по прямой линии для каждого участка для 100 м"""
-        self.delta_x_list = []
-        self.delta_y_list = []
-        for i in self.dir_list:
-            delta_x = length * math.sin(i)
-            delta_y = length * math.cos(i)
-            self.delta_x_list.append(delta_x)
-            self.delta_y_list.append(delta_y)
-        return self.delta_x_list, self.delta_y_list
-
-    # ОСНОВНАЯ ЛОГИКА
-
-    def calc_pick(self):
-        """Метод, реализующий получение координат пикетов в виде списков"""
-        # sum_dist = sum(self.dist_list)
-        # pickets = int(sum_dist // 100)
-        self.delta_coord()
-        x_0 = self.pointsX[0]
-        y_0 = self.pointsY[0]
-        self.pickX.append(x_0)
-        self.pickY.append(y_0)
-        i = 0
-        while i < (len(self.pointsX) - 2):
-            pk_x = x_0 + self.delta_x_list[i]
-            pk_y = y_0 + self.delta_y_list[i]
-            x_0 = pk_x
-            y_0 = pk_y
-            d = self.distance(self.pointsX[i + 1], self.pointsY[i + 1], pk_x, pk_y)
-            if d > 100:
-                self.pickX.append(pk_x)
-                self.pickY.append(pk_y)
-            else:
-                r_1 = round((pk_x - self.pointsX[i + 1]) / (pk_y - self.pointsY[i + 1]), 9)
-                r_2 = round((pk_x - self.pointsX[i]) / (pk_y - self.pointsY[i]), 9)
-                # Условие, при котором пикеты не будут выходить за пределы дороги
-                # Подумать насчет pk_x < X, так как дорога может быть в другую сторону
-                if r_1 == round(self.tan_rumb_list[i+1], 9) or r_2 == round(self.tan_rumb_list[i], 9) and pk_x < self.pointsX[i+1]:
-                    self.pickX.append(pk_x)
-                    self.pickY.append(pk_y)
-                pk_x = self.pointsX[i + 1] + self.delta_x(self.dir_list[i + 1], self.rest_dist()[i])
-                pk_y = self.pointsY[i + 1] + self.delta_y(self.dir_list[i + 1], self.rest_dist()[i])
-                x_0 = pk_x
-                y_0 = pk_y
-                self.pickX.append(pk_x)
-                self.pickY.append(pk_y)
-                i += 1
-
-        last_dist = int((self.dist_list[-1] - self.rest_dist()[-1]) // 100)
-        if last_dist != 0:
-            for n in range(last_dist):
-                pk_x = x_0 + self.delta_x_list[-1]
-                pk_y = y_0 + self.delta_y_list[-1]
-                x_0 = pk_x
-                y_0 = pk_y
-                self.pickX.append(pk_x)
-                self.pickY.append(pk_y)
-
-        return self.pickX, self.pickY
-
-    def add_points(self):
-        """Метод добавления пикетов на точечный слой в QGIS"""
-        layers = QgsProject.instance().mapLayersByName('Пикеты')
-        layer = QgsVectorLayer(layers[0].dataProvider().dataSourceUri(), '', 'ogr')
-        caps = layer.dataProvider().capabilities()
-        if caps & QgsVectorDataProvider.AddFeatures:
-            feat = QgsFeature(layer.fields())
-            feat.setAttributes([0, 'added programatically'])
-            for i in range(len(self.pickX)):
-                x = self.pickX[i]
-                y = self.pickY[i]
-                feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x, y)))
-                res, outFeats = layer.dataProvider().addFeatures([feat])
