@@ -85,17 +85,20 @@ class LayerProps:
         """Метод, преобразующий исходные координаты точек из системы координат слоя в целевую СК"""
         crs = str(self.__layer.crs()).split(': ')[1].split('>')[0]
         crsSrc = QgsCoordinateReferenceSystem(crs)  # WGS 84
-        crsDest = QgsCoordinateReferenceSystem(str(crs_target_))  # WGS 84 / UTM zone 33N
+        # crsDest = QgsCoordinateReferenceSystem(str(crs_target_))  # WGS 84 / UTM zone 33N
 
         # crsSrc = QgsCoordinateReferenceSystem("EPSG:4326")  # WGS 84
-        # crsDest = QgsCoordinateReferenceSystem("EPSG:32633")  # WGS 84 / UTM zone 33N
+        crsDest = QgsCoordinateReferenceSystem(crs_target_)  # WGS 84 / UTM zone 33N
 
-        transformContext = QgsProject.instance().transformContext()
-        xform = QgsCoordinateTransform(crsSrc, crsDest, transformContext)
+        # transformContext = QgsProject.instance().transformContext()
+        tform = QgsCoordinateTransform(crsSrc, crsDest, QgsProject.instance())
+        # xform = QgsCoordinateTransform(crsSrc, crsDest, transformContext)
         #
         # forward transformation: src -> dest
-        pt1 = xform.transform(QgsPointXY(point.x(), point.y()))
-        # print("Transformed point:", pt1.x())
+        print(point)
+        pt1 = tform.transform(QgsPointXY(point.x(), point.y()))
+        print("Transformed point:", pt1)
+        # Если выбирать географическую СК (в градусах), то пересчета не будет
         return pt1
 
     def get_points(self):
@@ -106,9 +109,7 @@ class LayerProps:
                 for pnt in part:
                     # transform CRS: CRS_layer -> CRS_target
                     # print(pnt.x())
-
                     pnt = self.convert_crs(pnt, self.crs_target)
-                    print(pnt.x())
                     points.append(Point(pnt.y(), pnt.x()))
         return points
 
