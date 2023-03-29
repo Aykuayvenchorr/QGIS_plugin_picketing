@@ -95,9 +95,9 @@ class LayerProps:
         # xform = QgsCoordinateTransform(crsSrc, crsDest, transformContext)
         #
         # forward transformation: src -> dest
-        print(point)
+        # print(point)
         pt1 = tform.transform(QgsPointXY(point.x(), point.y()))
-        print("Transformed point:", pt1)
+        # print("Transformed point:", pt1)
         # Если выбирать географическую СК (в градусах), то пересчета не будет
         return pt1
 

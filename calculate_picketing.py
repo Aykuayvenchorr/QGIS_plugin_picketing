@@ -24,6 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+import os
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -239,6 +240,10 @@ class CalculatePicketing:
             # Копке "Выбрать линию" (я ее в QtDesigner назвал btnSelectLine) назначаем метод "SelectLine" при нажатии
             self.dlg.btnSelectLine.clicked.connect(self.SelectLine)
 
+            # self.dlg.OpenCRSfile.clicked.connect(self.settingCRS)
+
+            self.dlg.UpdateCombobox.clicked.connect(self.update_crs_combobox)
+
             # self.dlg.ChooseCRS.clicked.connect(self.SelectCRS)
 
         # show the dialog
@@ -251,6 +256,9 @@ class CalculatePicketing:
         # self.crs_target = QgsProject.instance().crs().authid()
         self.crs_target = QgsProject.instance().crs()
         self.crs_layer = self.iface.activeLayer().crs()
+
+        # self.dlg.ChooseCRS.addItems(self.settingCRS())
+
         # Либо:
         # self.crs_target = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
 
@@ -261,6 +269,31 @@ class CalculatePicketing:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
             pass
+
+    def update_crs_combobox(self):
+        self.dlg.ChooseCRS.clear()
+        return self.dlg.ChooseCRS.addItems(self.settingCRS())
+
+    def settingCRS(self):
+        list_crs = []
+        # Считываем текстовый файл с перечнем систем координат
+        #
+        # print(os.path.abspath('D:\crs.txt'))
+        # print(os.path.basename('files/crs.txt'))
+
+        import subprocess
+        # subprocess.call('C:/Windows/System32/notepad.exe')
+        # subprocess.call('D:\crs.txt')
+
+        import os
+        os.system('D:\crs.txt')
+
+        with open("D:\crs.txt", "r+") as file:
+            for line in file:
+                crs = line.strip().split('/')
+                list_crs.append(crs[1])
+        # print(list_crs)
+        return list_crs
 
     def SelectCRS(self):
         crs_target = self.dlg.ChooseCRS.currentText()
@@ -304,13 +337,14 @@ class CalculatePicketing:
     def LineLengthCalc(self):
         """Основной метод: получаем координаты и рассчитываем расстояния и углы"""
 
-        print(self.dist_pk)
-        print(self.prefix_pk)
-        print(float(self.dlg.Distance.text()));
-        print(self.dlg.Prefix.text());
+        # print(self.dist_pk)
+        # print(self.prefix_pk)
+        # print(float(self.dlg.Distance.text()));
+        # print(self.dlg.Prefix.text());
+        # self.dlg.ChooseCRS.addItems(self.settingCRS())
+
         p = LayerProps(self.iface, float(self.dlg.Distance.text()), self.dlg.Prefix.text(), self.SelectCRS());
-        p.PK();
+        p.PK()
 
+        # print(self.settingCRS())
         # print(self.qline)
-
-
