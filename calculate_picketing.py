@@ -293,16 +293,7 @@ class CalculatePicketing:
         """Метод, который открывает файл crs.txt в блокноте для редактирования и считывает все системы координат из
         файла """
         list_crs = []
-        # Считываем текстовый файл с перечнем систем координат
-        #
-        # print(os.path.abspath('D:\crs.txt'))
-        # print(os.path.basename('files/crs.txt'))
-
-        import subprocess
-        # subprocess.call('C:/Windows/System32/notepad.exe')
-        # subprocess.call('D:\crs.txt')
-
-        import os
+        # Открывает блокнот с файлом координат
         os.system(self.crs_file_path)
 
         with open(self.crs_file_path, "r+") as file:
