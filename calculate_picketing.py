@@ -89,6 +89,10 @@ class CalculatePicketing:
             self.plugin_dir,
             'i18n',
             'CalculatePicketing_{}.qm'.format(locale))
+        self.crs_file_path = os.path.join(
+            self.plugin_dir,
+            'files',
+            'crs.txt')
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -274,7 +278,7 @@ class CalculatePicketing:
     def set_current_crs(self) -> list:
         """Метод, который заполняет ComboBox системами координат, записанными в файле crs.txt при открытии модуля"""
         list_crs = []
-        with open("D:\crs.txt", "r+") as file:
+        with open(self.crs_file_path, "r+") as file:
             for line in file:
                 crs = line.strip().split('/')
                 list_crs.append(crs[1])
@@ -299,9 +303,9 @@ class CalculatePicketing:
         # subprocess.call('D:\crs.txt')
 
         import os
-        os.system('D:\crs.txt')
+        os.system(self.crs_file_path)
 
-        with open("D:\crs.txt", "r+") as file:
+        with open(self.crs_file_path, "r+") as file:
             for line in file:
                 crs = line.strip().split('/')
                 list_crs.append(crs[1])
