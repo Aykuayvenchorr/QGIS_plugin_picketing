@@ -74,7 +74,7 @@
    <item row="5" column="2" colspan="2">
     <widget class="QPushButton" name="UpdateCombobox">
      <property name="text">
-      <string>UpdateCombobox</string>
+      <string>Обновить список систем координат</string>
      </property>
     </widget>
    </item>

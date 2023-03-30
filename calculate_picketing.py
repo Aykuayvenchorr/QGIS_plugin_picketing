@@ -243,6 +243,7 @@ class CalculatePicketing:
             # self.dlg.OpenCRSfile.clicked.connect(self.settingCRS)
 
             self.dlg.UpdateCombobox.clicked.connect(self.update_crs_combobox)
+            self.dlg.ChooseCRS.addItems(self.set_current_crs())
 
             # self.dlg.ChooseCRS.clicked.connect(self.SelectCRS)
 
@@ -270,11 +271,23 @@ class CalculatePicketing:
             # substitute with your code.
             pass
 
-    def update_crs_combobox(self):
+    def set_current_crs(self) -> list:
+        """Метод, который заполняет ComboBox системами координат, записанными в файле crs.txt при открытии модуля"""
+        list_crs = []
+        with open("D:\crs.txt", "r+") as file:
+            for line in file:
+                crs = line.strip().split('/')
+                list_crs.append(crs[1])
+        return list_crs
+
+    def update_crs_combobox(self) -> list:
+        """Метод, который добавляет новые системы координат к ComboBox"""
         self.dlg.ChooseCRS.clear()
         return self.dlg.ChooseCRS.addItems(self.settingCRS())
 
-    def settingCRS(self):
+    def settingCRS(self) -> list:
+        """Метод, который открывает файл crs.txt в блокноте для редактирования и считывает все системы координат из
+        файла """
         list_crs = []
         # Считываем текстовый файл с перечнем систем координат
         #
@@ -292,10 +305,9 @@ class CalculatePicketing:
             for line in file:
                 crs = line.strip().split('/')
                 list_crs.append(crs[1])
-        # print(list_crs)
         return list_crs
 
-    def SelectCRS(self):
+    def SelectCRS(self) -> str:
         crs_target = self.dlg.ChooseCRS.currentText()
         return crs_target
 
